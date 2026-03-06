@@ -153,7 +153,7 @@ def call_llm_generator(scraped_data, writing_style):
 
     【核心要求】：
     1. **本次行文侧重点**：必须以【{writing_style}】的角度来撰写。
-    2. **打破固定长度**：根据原文的信息量，自由展开深度。生成深度的长文（可达 800-1500 字），划分 4-6 个小标题详尽解析。
+    2. **打破固定长度**：根据原文的信息量，自由展开深度。生成深度的长文（可达 1000-1500 字），划分 5-6 个小标题详尽解析。
     3. **动态数组**：wechat.blocks 数组长度自由决定。
     """
 
@@ -178,7 +178,7 @@ def call_llm_generator(scraped_data, writing_style):
 
     try:
         response = dashscope.Generation.call(
-            model='qwen-max',
+            model='qwen-plus',
             prompt=user_prompt,
             system_prompt=system_prompt,
             result_format='message'
@@ -228,7 +228,7 @@ def main():
         # dashscope.api_key = api_key
 
         st.markdown("""
-        **使用指南**：
+        **生成流程**：
         1. 在主界面粘贴想要抓取的物流新闻链接。
         2. 勾选你想生成的不同观看受众视角。
         3. 点击生成，进入双屏排版预览台。
@@ -353,3 +353,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
