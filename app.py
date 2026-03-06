@@ -112,33 +112,53 @@ WECHAT_HTML_TEMPLATE = """
 # ============================================================
 @st.cache_data(show_spinner=False)
 def sniff_article_links(homepage_url):
-    """智能嗅探首页/列表页上的最新文章链接"""
+    """智能嗅探首页/列表页上的最新文章链接 (加强版去噪)"""
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0'
     }
     try:
         response = requests.get(homepage_url, headers=headers, timeout=10)
+        response.encoding = response.apparent_encoding
         soup = BeautifulSoup(response.text, 'html.parser')
         
+        # 🌟 核心升级 1：直接把网页的“页脚”、“导航栏”、“侧边栏”炸掉，只保留核心主体区
+        for tag in soup(['footer', 'header', 'nav', 'aside', 'script', 'style']):
+            tag.decompose()
+            
         links_data = []
         seen_urls = set()
         
-        # 寻找网页中的所有超链接
+        # 🌟 核心升级 2：建立垃圾词汇黑名单
+        blacklist_keywords = [
+            'icp', '备', '公网安', '许可证', '版权', 'copyright', 'all rights reserved', 
+            '关于我们', '联系我们', '加入我们', '法律声明', '隐私政策', '服务条款',
+            'about us', 'contact us', 'investor', 'privacy', 'terms', 'careers', 'sitemap'
+        ]
+        
         for a_tag in soup.find_all('a', href=True):
-            url = a_tag['href']
+            url = a_tag['href'].strip()
             text = a_tag.get_text(strip=True)
+            text_lower = text.lower()
             
-            # 过滤规则：
-            # 1. 标题太短的不要（通常是导航按钮如 "Home", "Contact"）
-            # 2. 链接不能是锚点 # 或 javascript
-            if len(text) > 15 and not url.startswith(('#', 'javascript', 'mailto')):
-                # 补全相对链接为绝对链接
-                full_url = urljoin(homepage_url, url)
+            # 1. 过滤掉文本太短的（通常是按钮，真正的文章标题起码十几个字）
+            if len(text) < 12:
+                continue
                 
-                # 简单去重
-                if full_url not in seen_urls:
-                    seen_urls.add(full_url)
-                    links_data.append({"title": text, "url": full_url})
+            # 2. 过滤掉不是网页的特殊链接（比如邮箱、电话、PDF文件）
+            if url.startswith(('#', 'javascript', 'mailto', 'tel')) or url.lower().endswith(('.pdf', '.jpg', '.png', '.zip', '.exe')):
+                continue
+                
+            # 3. 过滤掉命中黑名单的垃圾链接（比如 ICP 备案）
+            if any(kw in text_lower for kw in blacklist_keywords):
+                continue
+                
+            # 补全成可以直接访问的完整 URL
+            full_url = urljoin(homepage_url, url)
+            
+            # 4. 去重
+            if full_url not in seen_urls:
+                seen_urls.add(full_url)
+                links_data.append({"title": text, "url": full_url})
         
         # 返回前 15 条最像文章的链接
         return links_data[:15]
@@ -405,6 +425,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
