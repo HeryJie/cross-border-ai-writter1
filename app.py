@@ -26,7 +26,7 @@ try:
     DEFAULT_API_KEY = st.secrets["DASHSCOPE_API_KEY"]
 except:
     DEFAULT_API_KEY = ""
-
+dashscope.api_key = DEFAULT_API_KEY
 WRITING_STYLES = [
     "专业深度政策解读 (客观、专业、干货满满)",
     "引发跨境卖家共鸣 (制造危机感、剖析痛点、避免踩坑)",
@@ -353,3 +353,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
