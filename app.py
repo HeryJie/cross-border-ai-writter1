@@ -178,7 +178,7 @@ def call_llm_generator(scraped_data, writing_style):
 
     try:
         response = dashscope.Generation.call(
-            model='qwen-plus',
+            model='qwen-max',
             prompt=user_prompt,
             system_prompt=system_prompt,
             result_format='message'
@@ -222,22 +222,22 @@ def main():
     # 侧边栏配置
     with st.sidebar:
         st.image("https://img.alicdn.com/tfs/TB1pjlkwYj1gK0jSZFOXXc7GpXa-1000-1000.png", width=60)
-        st.title("控制面板")
+        st.title("使用说明")
         st.markdown("---")
         # api_key = st.text_input("🔑 阿里云 API Key", value=DEFAULT_API_KEY, type="password")
         # dashscope.api_key = api_key
 
         st.markdown("""
         **使用指南**：
-        1. 在主界面粘贴外媒物流新闻链接。
-        2. 勾选你想生成的不同受众视角。
+        1. 在主界面粘贴想要抓取的物流新闻链接。
+        2. 勾选你想生成的不同观看受众视角。
         3. 点击生成，进入双屏排版预览台。
-        4. 一键拷贝发布。
+        4. 一键拷贝。
         """)
 
     # 主界面
-    st.title("🚀 跨境物流 AI 爆款工作台")
-    st.markdown("输入外媒枯燥资讯，一键转化为 **精美微信公众号** + **高赞小红书种草文**。")
+    st.title("🚀 跨境物流日常公众号&小红书推文AI自动抓取生成工作台")
+    st.markdown("输入外媒原始资讯，一键转化为 **精美微信公众号** + **高赞小红书种草文**。")
     st.markdown("---")
 
     # 表单区域
@@ -249,7 +249,7 @@ def main():
         default=[WRITING_STYLES[0], WRITING_STYLES[1]]
     )
 
-    if st.button("🚀 立即生成爆款", use_container_width=True, type="primary"):
+    if st.button("🚀 立即生成文章", use_container_width=True, type="primary"):
         # if not api_key:
         #     st.error("⚠️ 请在侧边栏填写 API Key！")
         #     st.stop()
@@ -353,4 +353,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
