@@ -8,7 +8,7 @@ import dashscope
 from dashscope.api_entities.dashscope_response import HTTPStatus
 import streamlit as st
 import streamlit.components.v1 as components
-
+from urllib.parse import urljoin
 # ============================================================
 #  页面全局配置 (必须放在最前面)
 # ============================================================
@@ -111,6 +111,40 @@ WECHAT_HTML_TEMPLATE = """
 #  核心逻辑层
 # ============================================================
 @st.cache_data(show_spinner=False)
+def sniff_article_links(homepage_url):
+    """智能嗅探首页/列表页上的最新文章链接"""
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0'
+    }
+    try:
+        response = requests.get(homepage_url, headers=headers, timeout=10)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        links_data = []
+        seen_urls = set()
+        
+        # 寻找网页中的所有超链接
+        for a_tag in soup.find_all('a', href=True):
+            url = a_tag['href']
+            text = a_tag.get_text(strip=True)
+            
+            # 过滤规则：
+            # 1. 标题太短的不要（通常是导航按钮如 "Home", "Contact"）
+            # 2. 链接不能是锚点 # 或 javascript
+            if len(text) > 15 and not url.startswith(('#', 'javascript', 'mailto')):
+                # 补全相对链接为绝对链接
+                full_url = urljoin(homepage_url, url)
+                
+                # 简单去重
+                if full_url not in seen_urls:
+                    seen_urls.add(full_url)
+                    links_data.append({"title": text, "url": full_url})
+        
+        # 返回前 15 条最像文章的链接
+        return links_data[:15]
+    except Exception as e:
+        return []
+        
 def scrape_website(url):
     """抓取网页，使用 cache 避免重复抓取"""
     headers = {
@@ -235,14 +269,36 @@ def main():
         4. 一键拷贝。
         """)
 
-    # 主界面
-    st.title("🚀 跨境物流日常公众号&小红书推文AI自动抓取生成工作台")
+   st.title("🚀 跨境物流日常公众号&小红书推文AI自动抓取生成工作台")
     st.markdown("输入外媒原始资讯，一键转化为 **精美微信公众号** + **高赞小红书种草文**。")
     st.markdown("---")
 
-    # 表单区域
-    target_url = st.text_input("🔗 粘贴目标网页链接 (例如 CBP, Maersk 等官方新闻):", placeholder="https://www...")
+    # ================= 智能 URL 交互区 =================
+    target_url = st.text_input("🔗 粘贴目标网页链接 (可以是详情页，也可以是新闻列表页):", placeholder="https://www...")
+    
+    # 真正的抓取目标地址（可能等于用户输入的，也可能是用户从下拉框选的）
+    final_article_url = target_url
 
+    if target_url:
+        # 如果用户输入了链接，先探测一下这个网页里有没有其他文章链接
+        with st.spinner("🔍 正在嗅探网页链接..."):
+            possible_links = sniff_article_links(target_url)
+            
+        if possible_links:
+            # 如果嗅探到了链接，说明用户可能输入了一个主页/列表页
+            st.success(f"雷达扫描到该网页下有 {len(possible_links)} 篇最新资讯！")
+            
+            # 把提取到的标题做成下拉菜单供客户选择
+            options = ["👉 [这是具体的文章页面，直接抓取当前链接]"] + [f"📄 {item['title']}" for item in possible_links]
+            selected_option = st.selectbox("请确认您要抓取哪一篇文章：", options)
+            
+            if selected_option != options[0]:
+                # 如果客户选了下拉框里的某篇，就把抓取目标换成对应的 URL
+                selected_index = options.index(selected_option) - 1
+                final_article_url = possible_links[selected_index]['url']
+                st.info(f"即将抓取: {final_article_url}")
+
+    st.markdown("---")
     selected_styles = st.multiselect(
         "🎯 选择想要生成的文案风格 (勾选几个就生成几篇):",
         WRITING_STYLES,
@@ -250,32 +306,28 @@ def main():
     )
 
     if st.button("🚀 立即生成文章", use_container_width=True, type="primary"):
-        # if not api_key:
-        #     st.error("⚠️ 请在侧边栏填写 API Key！")
-        #     st.stop()
-        if not target_url:
+        if not final_article_url:
             st.warning("⚠️ 请输入目标网页链接！")
             st.stop()
         if not selected_styles:
             st.warning("⚠️ 请至少选择一种生成风格！")
             st.stop()
-
-        # 状态重置
+            
+        # ---------- 后续逻辑完全不变，只是把 target_url 换成 final_article_url ----------
         if 'generated_results' in st.session_state:
             del st.session_state['generated_results']
-
         st.session_state['generated_results'] = []
 
         # 1. 抓取网页阶段
-        with st.status("🕸️ 正在抓取目标网页内容与插图...", expanded=True) as status:
-            scraped_data = scrape_website(target_url)
+        with st.status(f"🕸️ 正在提取文章核心内容...", expanded=True) as status:
+            scraped_data = scrape_website(final_article_url)  # <--- 这里换成 final_article_url
             if "error" in scraped_data:
                 status.update(label=f"抓取失败: {scraped_data['error']}", state="error")
                 st.stop()
             else:
                 st.write(f"✅ 提取成功：{len(scraped_data['text'])} 字正文，{len(scraped_data['images'])} 张可用配图")
                 status.update(label="网页抓取成功！", state="complete", expanded=False)
-
+                
         # 2. AI 生成阶段
         progress_bar = st.progress(0)
         for i, style in enumerate(selected_styles):
@@ -353,4 +405,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
