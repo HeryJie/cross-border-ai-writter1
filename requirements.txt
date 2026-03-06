@@ -3,3 +3,4 @@ requests
 beautifulsoup4
 jinja2
 dashscope
+trafilatura
