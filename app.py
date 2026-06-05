@@ -9,18 +9,13 @@ from dashscope.api_entities.dashscope_response import HTTPStatus
 import streamlit as st
 import streamlit.components.v1 as components
 from urllib.parse import urljoin
-# ============================================================
-#  页面全局配置 (必须放在最前面)
-# ============================================================
+from http import HTTPStatus
 st.set_page_config(
     page_title="跨境物流 AI 爆款生成器",
     page_icon="🚀",
     layout="wide"
 )
 
-# ============================================================
-#  配置与常量
-# ============================================================
 # DEFAULT_API_KEY = "**"
 try:
     DEFAULT_API_KEY = st.secrets["DASHSCOPE_API_KEY"]
@@ -106,10 +101,6 @@ WECHAT_HTML_TEMPLATE = """
 </html>
 """
 
-
-# ============================================================
-#  核心逻辑层
-# ============================================================
 @st.cache_data(show_spinner=False)
 def sniff_article_links(homepage_url):
     """智能嗅探首页/列表页上的最新文章链接 (加强版去噪)"""
@@ -120,15 +111,13 @@ def sniff_article_links(homepage_url):
         response = requests.get(homepage_url, headers=headers, timeout=10)
         response.encoding = response.apparent_encoding
         soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # 🌟 核心升级 1：直接把网页的“页脚”、“导航栏”、“侧边栏”炸掉，只保留核心主体区
+
         for tag in soup(['footer', 'header', 'nav', 'aside', 'script', 'style']):
             tag.decompose()
             
         links_data = []
         seen_urls = set()
-        
-        # 🌟 核心升级 2：建立垃圾词汇黑名单
+
         blacklist_keywords = [
             'icp', '备', '公网安', '许可证', '版权', 'copyright', 'all rights reserved', 
             '关于我们', '联系我们', '加入我们', '法律声明', '隐私政策', '服务条款',
@@ -139,65 +128,26 @@ def sniff_article_links(homepage_url):
             url = a_tag['href'].strip()
             text = a_tag.get_text(strip=True)
             text_lower = text.lower()
-            
-            # 1. 过滤掉文本太短的（通常是按钮，真正的文章标题起码十几个字）
+
             if len(text) < 12:
                 continue
-                
-            # 2. 过滤掉不是网页的特殊链接（比如邮箱、电话、PDF文件）
+
             if url.startswith(('#', 'javascript', 'mailto', 'tel')) or url.lower().endswith(('.pdf', '.jpg', '.png', '.zip', '.exe')):
                 continue
-                
-            # 3. 过滤掉命中黑名单的垃圾链接（比如 ICP 备案）
+
             if any(kw in text_lower for kw in blacklist_keywords):
                 continue
-                
-            # 补全成可以直接访问的完整 URL
+
             full_url = urljoin(homepage_url, url)
-            
-            # 4. 去重
+
             if full_url not in seen_urls:
                 seen_urls.add(full_url)
                 links_data.append({"title": text, "url": full_url})
-        
-        # 返回前 15 条最像文章的链接
+
         return links_data[:15]
     except Exception as e:
         return []
         
-# def scrape_website(url):
-#     """抓取网页，使用 cache 避免重复抓取"""
-#     headers = {
-#         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-#     }
-#     try:
-#         response = requests.get(url, headers=headers, timeout=15)
-#         response.encoding = response.apparent_encoding
-#         soup = BeautifulSoup(response.text, 'html.parser')
-#
-#         paragraphs = soup.find_all(['p', 'h1', 'h2', 'h3', 'li'])
-#         text_content = "\n".join([p.get_text().strip() for p in paragraphs if len(p.get_text().strip()) > 10])
-#         text_content = text_content[:6000]
-#
-#         images = []
-#         og_image = soup.find('meta', property='og:image')
-#         if og_image and og_image.get('content'):
-#             images.append(og_image.get('content'))
-#
-#         for img in soup.find_all('img'):
-#             src = img.get('src') or img.get('data-src')
-#             if src:
-#                 if src.startswith('/'):
-#                     base_url = "/".join(url.split('/')[:3])
-#                     src = base_url + src
-#                 bad_keywords = ['logo', 'icon', 'svg', 'avatar', 'banner', 'button', 'base64', 'gif', '1x1']
-#                 if not any(x in src.lower() for x in bad_keywords):
-#                     images.append(src)
-#
-#         images = list(dict.fromkeys(images))[:3]
-#         return {"text": text_content, "images": images}
-#     except Exception as e:
-#         return {"error": str(e)}
 
 def scrape_website(url):
     """抓取网页正文（升级版：精准提取文章主体）"""
@@ -211,9 +161,6 @@ def scrape_website(url):
         response.encoding = response.apparent_encoding
         soup = BeautifulSoup(response.text, 'html.parser')
 
-        # =========================
-        # 1️⃣ 优先寻找正文容器
-        # =========================
         article_container = None
 
         possible_selectors = [
@@ -234,19 +181,12 @@ def scrape_website(url):
             if article_container:
                 break
 
-        # 如果找不到正文容器，就退回整个页面
         if not article_container:
             article_container = soup
 
-        # =========================
-        # 2️⃣ 删除明显垃圾区域
-        # =========================
         for tag in article_container(['nav','footer','aside','script','style']):
             tag.decompose()
 
-        # =========================
-        # 3️⃣ 提取正文
-        # =========================
         paragraphs = article_container.find_all(['p','h1','h2','h3','li'])
 
         text_list = []
@@ -273,12 +213,8 @@ def scrape_website(url):
 
         text_content = "\n".join(text_list)
 
-        # 限制长度防止token爆
         text_content = text_content[:6000]
 
-        # =========================
-        # 4️⃣ 图片提取
-        # =========================
         images = []
 
         og_image = soup.find('meta', property='og:image')
@@ -316,39 +252,61 @@ def scrape_website(url):
         return {"error": str(e)}
 
 
+
 def call_llm_generator(scraped_data, writing_style):
     system_prompt = f"""
-    你是一位顶级的跨境物流资深主编兼新媒体排版大师。
-    请基于抓取的内容和提供的图片，生成两份**完全独立**的内容格式。
+    你现在是【头部专业清关与跨境物流公司的运营总监兼首席合规官】。
+    你深谙欧美海关查验（如CBP、HMRC等）、关税政策、反倾销及合规化运营，拥有10年以上实战经验。
 
-    【核心要求】：
-    1. **本次行文侧重点**：必须以【{writing_style}】的角度来撰写。
-    2. **打破固定长度**：根据原文的信息量，自由展开深度。生成深度的长文（可达 1000-1500 字），划分 5-6 个小标题详尽解析。
-    3. **动态数组**：wechat.blocks 数组长度自由决定。
+    【反幻觉与严谨性最高指令】（严禁违反）：
+    1. 绝对忠于原文事实：对于原文提到的时间、新政策名称、涉案金额、查验率等【客观数据与事实】，必须100%忠于原文，绝对禁止编造虚假的法案名称、虚假的海关通告或虚假的税率数字。
+    2. 区分事实与观点：对于不确定的趋势，必须使用“业内预判”、“从过往经验来看”、“可能引发”等严谨词汇，绝不能把预测当作已发生的政策发布。
+    3. 拒绝绝对化承诺：在给出实操建议时，严禁出现“包过”、“绝对安全”、“100%免查验”等违规话术。合规建议必须是客观的“标准操作程序(SOP)”。
+
+    【如何在不编造事实的前提下，写出1500字的深度长文？】
+    请调用你的专业常识，通过【逻辑拆解与场景带入】来安全地扩写文章（这是你的核心能力）：
+    1. 追溯历史（安全扩写）：这个事件不是孤立的。请补充相关的历史背景（例如：这是否是近年来欧美海关严查T86清关/打击低申报趋势的延续？）
+    2. 受众切片（安全扩写）：原文可能只是一句话的新闻。请你详细推演：这对于“铺货型小白卖家”、“品牌出海大卖”、“做双清包税的货代”分别意味着哪些不同的合规风险？
+    3. 痛点共鸣（安全扩写）：描述卖家在遇到此类清关问题时，真实的痛苦场景（如：货物滞留港口、高额仓租费、店铺断货风险），以此引发情绪共鸣。
+    4. 标准化排雷指南（安全扩写）：基于跨境清关的常识底座，给出普适且绝对正确的合规建议（如：如实申报HS Code、保留采购发票、警惕远低于市场价的物流渠道等）。
+
+    【行文风格要求】：
+    必须以【{writing_style}】的角度来撰写。语气要像一位经历过行业大风大浪、语重心长且极为专业的老炮。既要有高屋建瓴的宏观视野，又要有脚踏实地的避坑干货。文章内容需详实丰满，字数在1500字左右。
     """
 
     user_prompt = f"""
-    【原文资料】：{scraped_data['text']}
-    【可用图片URL列表】：{json.dumps(scraped_data['images'], ensure_ascii=False)}
+    【输入资料】：
+    客观新闻/原文资料：{scraped_data['text']}
+    可用配图URL列表：{json.dumps(scraped_data['images'], ensure_ascii=False)}
 
-    请务必只返回合法的 JSON 格式：
+    【输出要求】：
+    请严格返回合法的 JSON 格式，绝不允许输出任何Markdown包裹外的多余文本。包含 `wechat` 和 `xhs_text` 两个字段：
+
     {{
         "wechat": {{
-            "title": "符合设定风格的微信爆款标题",
+            "title": "直击痛点、引发危机感但绝不制造虚假恐慌的微信标题（包含核心关键词，20字内）",
             "blocks": [
-                {{ "type": "text", "content": "内容..." }},
-                {{ "type": "image", "url": "挑选列表中的图片", "caption": "图片说明" }},
-                {{ "type": "subtitle", "content": "小标题..." }}
+                {{ "type": "text", "content": "【事件速递】客观、准确地概述输入资料中的核心事件，不加任何夸大。" }},
+                {{ "type": "subtitle", "content": "深度洞察：风暴背后的底层逻辑" }},
+                {{ "type": "text", "content": "结合行业大环境（如合规化进程、税务阳光化）分析事件为何发生..." }},
+                {{ "type": "quote", "content": "提炼一句清关行业的合规金句，如：‘海关的每一条新规，都是对过往灰产的精准打击。’" }},
+                {{ "type": "subtitle", "content": "蝴蝶效应：卖家面临的真实考验" }},
+                {{ "type": "text", "content": "按不同类型卖家/物流模式详细剖析影响，描述痛点场景..." }},
+                {{ "type": "image", "url": "挑选列表中的图片", "caption": "客观准确的配图说明" }},
+                {{ "type": "subtitle", "content": "合规官建议：X条标准化应对策略" }},
+                {{ "type": "text", "content": "给出基于行业常识、绝不误导的合法合规实操建议..." }}
+                // 请继续生成充足的 text、subtitle、quote 模块，使得正文充满干货，总篇幅达到长文标准。
             ]
         }},
-        "xhs_text": "此处直接输出为你排版好的小红书纯文本！包含标题、正文结构、Emoji和热门标签。"
+        "xhs_text": "【小红书纯文本】：\\n1. 标题：带情绪Emoji的行业预警或避坑提醒。\\n2. 正文结构：【发生什么（客观）】+【谁受影响（精准定位）】+【立刻自查3要点（合规建议）】。\\n3. 语气：专业但通俗，禁止长篇大论，多用空行和 🔴✅ 符号。\\n4. 结尾：带 #跨境物流 #清关合规 等精准Tag。"
     }}
-    注意：wechat.blocks type 只能是 text, subtitle, quote, image。微信重点词语用 **加粗**。
+
+    注意：wechat.blocks 的 type 只能是 text, subtitle, quote, image。微信正文的重点合规警示请用 **加粗** 标记。
     """
 
     try:
         response = dashscope.Generation.call(
-            model='qwen-plus',
+            model='qwen-max', 
             prompt=user_prompt,
             system_prompt=system_prompt,
             result_format='message'
@@ -361,6 +319,8 @@ def call_llm_generator(scraped_data, writing_style):
             return json.loads(content)
         else:
             return {"error": response.message}
+    except json.JSONDecodeError:
+        return {"error": "LLM返回的格式不是标准的JSON，请重试。"}
     except Exception as e:
         return {"error": str(e)}
 
@@ -385,18 +345,11 @@ def render_wechat_html(ai_data, style_name):
     )
 
 
-# ============================================================
-#  Streamlit UI 构建
-# ============================================================
 def main():
-    # 侧边栏配置
     with st.sidebar:
         st.image("https://img.alicdn.com/tfs/TB1pjlkwYj1gK0jSZFOXXc7GpXa-1000-1000.png", width=60)
         st.title("使用说明")
         st.markdown("---")
-        # api_key = st.text_input("🔑 阿里云 API Key", value=DEFAULT_API_KEY, type="password")
-        # dashscope.api_key = api_key
-
         st.markdown("""
         **生成流程**：
         1. 在主界面粘贴想要抓取的物流新闻链接，按下Enter键。
@@ -410,27 +363,21 @@ def main():
     st.markdown("输入外媒原始资讯，一键转化为 **精美微信公众号** + **高赞小红书种草文**。")
     st.markdown("---")
 
-    # ================= 智能 URL 交互区 =================
     target_url = st.text_input("🔗 粘贴目标网页链接 (可以是详情页，也可以是新闻列表页):", placeholder="https://www...")
-    
-    # 真正的抓取目标地址（可能等于用户输入的，也可能是用户从下拉框选的）
+
     final_article_url = target_url
 
     if target_url:
-        # 如果用户输入了链接，先探测一下这个网页里有没有其他文章链接
         with st.spinner("🔍 正在嗅探网页链接..."):
             possible_links = sniff_article_links(target_url)
             
         if possible_links:
-            # 如果嗅探到了链接，说明用户可能输入了一个主页/列表页
             st.success(f"雷达扫描到该网页下有 {len(possible_links)} 篇最新资讯！")
-            
-            # 把提取到的标题做成下拉菜单供客户选择
+
             options = ["👉 [这是具体的文章页面，直接抓取当前链接]"] + [f"📄 {item['title']}" for item in possible_links]
             selected_option = st.selectbox("请确认您要抓取哪一篇文章：", options)
             
             if selected_option != options[0]:
-                # 如果客户选了下拉框里的某篇，就把抓取目标换成对应的 URL
                 selected_index = options.index(selected_option) - 1
                 final_article_url = possible_links[selected_index]['url']
                 st.info(f"即将抓取: {final_article_url}")
@@ -449,15 +396,13 @@ def main():
         if not selected_styles:
             st.warning("⚠️ 请至少选择一种生成风格！")
             st.stop()
-            
-        # ---------- 后续逻辑完全不变，只是把 target_url 换成 final_article_url ----------
+
         if 'generated_results' in st.session_state:
             del st.session_state['generated_results']
         st.session_state['generated_results'] = []
 
-        # 1. 抓取网页阶段
         with st.status(f"🕸️ 正在提取文章核心内容...", expanded=True) as status:
-            scraped_data = scrape_website(final_article_url)  # <--- 这里换成 final_article_url
+            scraped_data = scrape_website(final_article_url) 
             if "error" in scraped_data:
                 status.update(label=f"抓取失败: {scraped_data['error']}", state="error")
                 st.stop()
@@ -465,7 +410,6 @@ def main():
                 st.write(f"✅ 提取成功：{len(scraped_data['text'])} 字正文，{len(scraped_data['images'])} 张可用配图")
                 status.update(label="网页抓取成功！", state="complete", expanded=False)
                 
-        # 2. AI 生成阶段
         progress_bar = st.progress(0)
         for i, style in enumerate(selected_styles):
             with st.spinner(f"🧠 正在以【{style.split(' ')[0]}】视角撰稿与排版..."):
@@ -485,36 +429,28 @@ def main():
                     "title": ai_data.get("wechat", {}).get("title", "未命名标题")
                 })
 
-            # 更新进度条
             progress_bar.progress((i + 1) / len(selected_styles))
 
         st.success("🎉 所有矩阵文案生成完毕！请在下方进行审校和拷贝。")
 
-    # ============================================================
-    #  结果展示工作台 (只在生成后显示)
-    # ============================================================
+
     if st.session_state.get('generated_results'):
         st.markdown("## 📊 多版本审阅工作台")
 
-        # 动态生成标签页
         tab_names = [res["style_short"] for res in st.session_state['generated_results']]
         tabs = st.tabs(tab_names)
 
         for i, tab in enumerate(tabs):
             res = st.session_state['generated_results'][i]
             with tab:
-                # 左右双栏布局
                 col1, col2 = st.columns([1.2, 1], gap="large")
 
-                # 左侧：微信公众号
                 with col1:
                     st.subheader("🟢 微信公众号实时预览")
                     st.info("💡 提示：在网页中 `Ctrl+A` 全选，直接拷贝到微信公众号后台即可完美保留格式！")
 
-                    # 使用内嵌 HTML 组件渲染排版效果，高度设为 800px 支持内滚
                     components.html(res["html"], height=700, scrolling=True)
 
-                    # 提供下载按钮
                     st.download_button(
                         label="⬇️ 导出为 HTML 文件",
                         data=res["html"],
@@ -523,12 +459,10 @@ def main():
                         key=f"dl_wechat_{i}"
                     )
 
-                # 右侧：小红书文案
                 with col2:
                     st.subheader("🔴 小红书直接发布版")
                     st.info("💡 提示：点击代码框右上角的“复制”图标，一键提取到手机发布！")
 
-                    # 使用代码块展示，自带一键拷贝按钮
                     st.code(res["xhs"], language="markdown")
 
                     st.download_button(
