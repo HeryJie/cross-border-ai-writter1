@@ -309,7 +309,9 @@ def call_llm_generator(scraped_data, writing_style):
             model='qwen-max', 
             prompt=user_prompt,
             system_prompt=system_prompt,
-            result_format='message'
+            result_format='message',
+            max_tokens=3000,
+            temperature=0.8
         )
         if response.status_code == HTTPStatus.OK:
             content = response.output.choices[0].message.content
