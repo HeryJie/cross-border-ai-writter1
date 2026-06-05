@@ -287,10 +287,10 @@ def call_llm_generator(scraped_data, writing_style):
             "title": "直击痛点、引发危机感但绝不制造虚假恐慌的微信标题（包含核心关键词，30字内）",
             "blocks": [
                 {{ "type": "text", "content": "【事件速递】客观、准确地概述输入资料中的核心事件，不加任何夸大，50字左右。" }},
-                {{ "type": "subtitle", "content": "深度洞察：风暴背后的底层逻辑" }},
+                {{ "type": "subtitle", "content": "深度洞察：事件背后的底层逻辑" }},
                 {{ "type": "text", "content": "结合行业大环境（如合规化进程、税务阳光化）分析事件为何发生..." }},
                 {{ "type": "quote", "content": "提炼一句清关行业的合规金句，如：‘海关的每一条新规，都是对过往灰产的精准打击。’" }},
-                {{ "type": "subtitle", "content": "卖家面临的真实考验" }},
+                {{ "type": "subtitle", "content": "思考：卖家面临的真实考验" }},
                 {{ "type": "text", "content": "按不同类型卖家/物流模式详细剖析影响，描述痛点场景..." }},
                 {{ "type": "image", "url": "挑选列表中的图片", "caption": "客观准确的配图说明" }},
                 {{ "type": "subtitle", "content": "合规建议：X条标准化应对策略" }},
