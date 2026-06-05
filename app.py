@@ -213,7 +213,7 @@ def scrape_website(url):
 
         text_content = "\n".join(text_list)
 
-        text_content = text_content[:6000]
+        text_content = text_content[:9000]
 
         images = []
 
